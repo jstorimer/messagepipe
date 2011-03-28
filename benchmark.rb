@@ -23,7 +23,7 @@ end
 # Create 5 concurrent workers to pound the server with the fuzz test
 pids = (0..4).collect do 
 	fork do 
-		socket = MessagePipe.new(TcpTransport.new('localhost', 9191))
+		socket = MessagePipe.new#(TcpTransport.new('localhost', 9191))
 
 		ms = Benchmark.realtime do 
 			expectations.each do |expectation, method, *args|

@@ -1,13 +1,16 @@
 == MessagePipe
 
-MessagePack (http://msgpack.org/) based high performance rpc layer with support for multiple transports (eventually)
+MessagePack (http://msgpack.org/) based high performance rpc layer built on zmq
+
+This fork is built on zmq rather than tcp. ZMQ already supports multiple transport layers, as well as multilpe messaging paradigms (http://www.zeromq.org/).
+
+tl;dr Just switching zmq for tcp here made this consistently 20% faster. zmq is the shit.
 
 == Example
 
-
 server.rb: 
 
-  class TestServer < MessagePipeServer
+  class TestServer < ZMQMessagePipeServer
 
     def add(a, b)
       a + b
@@ -19,18 +22,64 @@ server.rb:
 
   end
 
-  EventMachine::run do
-    EventMachine::start_server "0.0.0.0", 9191, TestServer
-  end
-
-
+  TestServer.new.start
 
 client.rb
 
-  client = MessagePipe.new(TcpTransport.new('localhost', 9191))
+  client = MessagePipe.new('localhost', 9191))
   client.call :add, 1, 2 #=> 3
   client.call :echo, 'hello' #=> 'hello'
   client.call :does_not_exist #=> raise MessagePipe::RemoteError, 'NoMethodError: no method with name does_not_exist'
+
+== benchmarks
+Tobi's original release:
+=========
+
+$ time ruby -rsocket benchmark.rb 
+benchmark finished in 7.11434507369995s
+benchmark finished in 7.72831606864929s
+benchmark finished in 8.28042602539062s
+benchmark finished in 8.66085696220398s
+benchmark finished in 8.80554294586182s
+
+real  0m8.914s
+user  0m1.036s
+sys 0m0.934s
+[jessestorimer@jessebook:~/projects/messagepipe] [git:master] [ree-1.8.7@messagepipe]
+$ time ruby -rsocket benchmark.rb 
+benchmark finished in 7.20177602767944s
+benchmark finished in 7.79495096206665s
+benchmark finished in 8.26117610931396s
+benchmark finished in 8.58127403259277s
+benchmark finished in 8.78165793418884s
+
+real  0m8.891s
+user  0m1.030s
+sys 0m0.933s
+
+Same thing but with zmq
+========
+$ time ruby benchmark.rb 
+benchmark finished in 7.06875610351562s
+benchmark finished in 7.06779718399048s
+benchmark finished in 7.07593989372253s
+benchmark finished in 7.12636685371399s
+benchmark finished in 7.13110589981079s
+
+real  0m7.240s
+user  0m1.124s
+sys 0m1.917s
+[jessestorimer@jessebook:~/projects/messagepipe] [git:master+] [ree-1.8.7@messagepipe]
+$ time ruby benchmark.rb 
+benchmark finished in 7.06084990501404s
+benchmark finished in 7.0807249546051s
+benchmark finished in 7.08461308479309s
+benchmark finished in 7.08931183815002s
+benchmark finished in 7.0946729183197s
+
+real  0m7.200s
+user  0m1.112s
+sys 0m1.913s
 
 == todo
 

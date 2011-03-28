@@ -1,27 +1,26 @@
 require 'rubygems'
-require 'eventmachine' 
 require 'msgpack'
 require 'benchmark'
+require 'zmq'
 
-# Server that receives MessagePack RPC
-class MessagePipeServer < EventMachine::Connection
+class ZMQMessagePipeServer
   CMD_CALL = 0x01
   RET_OK   = 0x02
   RET_E    = 0x03
 
-  protected 
-
-  def pac
-    @pac ||= MessagePack::Unpacker.new  # Stream Deserializer
+  def initialize(port = 5555)
+    @ctx = ZMQ::Context.new(1)
+    @inbound = @ctx.socket ZMQ::REP
+     
+    @inbound.bind('tcp://127.0.0.1:5555')
   end
 
-  def receive_data(data)    
-    pac.feed(data)        
-    pac.each do |msg|      
-      begin        
+  def start
+   loop do
+    data = @inbound.recv
+    msg = MessagePack.unpack(data)
 
-        response = nil
-
+    response = nil
         secs = Benchmark.realtime do 
           response = begin 
             [RET_OK, receive_object(msg)]
@@ -30,22 +29,19 @@ class MessagePipeServer < EventMachine::Connection
           end
         end
 
-        send_data(response.to_msgpack)
+        @inbound.send response.to_msgpack
         
         puts "#{object_id} - #{msg[1]}(#{msg[2].length} args) - [%.4f ms] [#{response[0] == RET_OK ? 'ok' : 'error'}]" % [secs||0]
-        
       end
-    end
   end
 
-  def receive_object(msg)    
+    def receive_object(msg)    
     cmd, method, args = *msg    
 
     if cmd != CMD_CALL
-      unbind
+      # unbind
       raise 'Bad client'
     end
-
     
     if method and public_methods.include?(method)
       return __send__(method, *args)
@@ -55,7 +51,7 @@ class MessagePipeServer < EventMachine::Connection
   end
 end
 
-class TestServer < MessagePipeServer
+class TestServer < ZMQMessagePipeServer
 
   def add(a, b)
     a + b
@@ -79,10 +75,6 @@ class TestServer < MessagePipeServer
   def private_method
     'oh no'
   end
-
 end
 
-EventMachine::run do
-  EventMachine::start_server "0.0.0.0", 9191, TestServer
-end
-
+TestServer.new.start
